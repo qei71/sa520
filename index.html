@@ -4,8 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bella Vita Italian Kitchen</title>
+    <title>薩諾瓦義式廚房 - 訂位系統</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         body {
@@ -18,7 +19,6 @@
         details summary::-webkit-details-marker { display: none; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         
-        /* 啟動載入畫面樣式 */
         #splash-screen {
             position: fixed;
             inset: 0;
@@ -59,20 +59,18 @@
 </script>
 </head>
 <body>
-    <!-- Splash Screen -->
     <div id="splash-screen">
-        <img src="https://i.ibb.co/93NGBjjh/IMG-6773.jpg" alt="Bella Vita Loading">
+        <img src="https://i.ibb.co/93NGBjjh/IMG-6773.jpg" alt="SANOVA Loading">
     </div>
 
     <div id="root"></div>
     
     <script>
-        // 資料加載完成後移除啟動畫面
         window.addEventListener('load', () => {
             setTimeout(() => {
                 const splash = document.getElementById('splash-screen');
                 if (splash) splash.classList.add('splash-hidden');
-            }, 2000); // 最少顯示 2 秒
+            }, 2000);
         });
     </script>
 </body>
