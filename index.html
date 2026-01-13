@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SANOVA 薩諾瓦義式廚房</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary: #064e3b; --bg: #fdfbf7; --accent: #d97706; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg); margin: 0; overflow-x: hidden; }
+        .font-serif { font-family: 'Playfair+Display', serif; }
+        
+        #splash-screen {
+            position: fixed; inset: 0; z-index: 9999; background: #000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.6s ease-out;
+        }
+        #splash-screen.hidden-splash { opacity: 0; pointer-events: none; }
+        #splash-screen img { width: 100%; height: 100%; object-fit: cover; opacity: 0.5; }
+        #splash-screen .loader-text { position: absolute; text-align: center; color: white; }
+
+        .btn-primary { background: var(--primary); color: white; border-radius: 1rem; transition: all 0.2s; }
+        .btn-primary:active { transform: scale(0.95); opacity: 0.9; }
+        .nav-item { transition: all 0.3s; }
+        .nav-item.active { color: var(--primary); font-weight: bold; transform: translateY(-2px); }
+        .card { background: white; border-radius: 1.5rem; border: 1px solid rgba(0,0,0,0.05); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.01); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-slide-up { animation: slideUp 0.4s ease-out forwards; }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.12.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "recharts": "https://esm.sh/recharts@^3.6.0"
+  }
+}
+</script>
+</head>
+<body>
+    <div id="splash-screen">
+        <img src="https://i.ibb.co/93NGBjjh/IMG-6773.jpg" alt="SANOVA">
+        <div class="loader-text">
+            <h1 class="text-4xl font-serif italic tracking-widest mb-1">SANOVA</h1>
+            <p class="text-[10px] tracking-[0.4em] uppercase opacity-60">Italian Kitchen</p>
+            <div class="mt-6 h-0.5 w-12 bg-white/20 mx-auto rounded-full overflow-hidden">
+                <div class="h-full bg-white w-1/2 animate-[slide_1.5s_infinite]"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="root"></div>
+
+    <script type="module">
+        import React, { useState, useEffect, useMemo, createContext, useContext } from 'https://esm.sh/react@18.2.0';
+        import ReactDOM from 'https://esm.sh/react-dom@18.2.0/client';
+        import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'https://esm.sh/react-router-dom@6.11.2';
+        import { 
+          Home as HomeIcon, Utensils, Calendar, User, Info, PlusCircle, X, ShoppingCart, 
+          CheckCircle2, Loader2, MapPin, Phone, Clock, ChevronRight, HelpCircle, LogIn, 
+          ShieldCheck, Trash2, Sparkles, Send, Facebook, MessageCircle
+        } from 'https://esm.sh/lucide-react@0.244.0';
+
+        const AuthContext = createContext();
+
+        // --- GAS API 調用器 ---
+        const callGAS = (method, data = null) => {
+          return new Promise((resolve, reject) => {
+            if (window.google?.script?.run) {
+              window.google.script.run
+                .withSuccessHandler(resolve)
+                .withFailureHandler(reject)[method](data);
+            } else {
+              // 開發模擬
+              setTimeout(() => {
+                if(method === 'getAppData') resolve({
+                   menu: [
+                     { id: 'p1', name: '瑪格麗特披薩', price: 180, category: 'PIZZA', description: '經典莫札瑞拉起司', isPopular: 'TRUE' },
+                     { id: 'p2', name: '奶油培根義大利麵', price: 170, category: 'PASTA', description: '香濃白醬' }
+                   ],
+                   faqs: [{ 問題: '有素食嗎？', 回答: '有的' }],
+                   reservations: []
+                });
+                else resolve({ success: true, table: 'A1' });
+              }, 800);
+            }
+          });
+        };
+
+        const Layout = ({ children, cartCount }) => {
+          const loc = useLocation();
+          const navItems = [
+            { path: '/', icon: HomeIcon, label: '首頁' },
+            { path: '/menu', icon: Utensils, label: '菜單' },
+            { path: '/booking', icon: Calendar, label: '訂位' },
+            { path: '/member', icon: User, label: '會員' }
+          ];
+          return (
+            <div className="min-h-screen pb-24 max-w-md mx-auto bg-white shadow-2xl relative flex flex-col">
+              <header className="bg-emerald-900 text-white p-5 sticky top-0 z-50 flex justify-between items-center shadow-md">
+                <span className="w-8"></span>
+                <h1 className="text-xl font-serif italic tracking-widest">SANOVA</h1>
+                <Link to="/booking" className="relative p-1">
+                  <ShoppingCart size={22} />
+                  {cartCount > 0 && <span className="absolute -top-1 -right-1 bg-orange-500 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-bold border border-emerald-900">{cartCount}</span>}
+                </Link>
+              </header>
+              <main className="flex-1 animate-slide-up">{children}</main>
+              <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white/95 backdrop-blur-md border-t border-gray-100 py-4 flex justify-around items-center z-50">
+                {navItems.map(item => (
+                  <Link key={item.path} to={item.path} className={`nav-item flex flex-col items-center gap-1 ${loc.pathname === item.path ? 'active' : 'text-gray-300'}`}>
+                    <item.icon size={20} />
+                    <span className="text-[10px] uppercase font-bold tracking-tighter">{item.label}</span>
+                  </Link>
+                ))}
+              </nav>
+            </div>
+          );
+        };
+
+        const Home = () => (
+          <div className="p-4 space-y-6">
+            <div className="relative h-80 rounded-[2.5rem] overflow-hidden shadow-xl">
+              <img src="https://i.ibb.co/qLFg7gSk/Gemini-Generated-Image-cmj4yzcmj4yzcmj4.png" className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/90 via-transparent p-8 flex flex-col justify-end">
+                <h2 className="text-white text-3xl font-serif font-bold">義式精髓<br/>原味覺醒</h2>
+                <p className="text-white/60 text-[10px] tracking-widest mt-2 uppercase">SANOVA Italian Kitchen · Kinmen</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 gap-2 px-2">
+              {[
+                { icon: Utensils, label: '菜單', path: '/menu', color: 'bg-orange-50 text-orange-600' },
+                { icon: Calendar, label: '訂位', path: '/booking', color: 'bg-emerald-50 text-emerald-800' },
+                { icon: MapPin, label: '交通', path: '/info', color: 'bg-blue-50 text-blue-600' },
+                { icon: HelpCircle, label: '常見問題', path: '/info', color: 'bg-purple-50 text-purple-600' }
+              ].map((btn, i) => (
+                <Link key={i} to={btn.path} className="flex flex-col items-center gap-2">
+                  <div className={`w-14 h-14 ${btn.color} rounded-2xl flex items-center justify-center shadow-sm`}><btn.icon size={24}/></div>
+                  <span className="text-[10px] font-bold text-gray-600">{btn.label}</span>
+                </Link>
+              ))}
+            </div>
+            <div className="px-2">
+               <a href="https://www.facebook.com/sa520/" target="_blank" className="card p-5 bg-[#1877F2] text-white flex justify-between items-center active:scale-95 transition-all">
+                  <div className="flex items-center gap-3">
+                    <Facebook size={24}/>
+                    <div>
+                      <p className="font-bold text-sm">追蹤薩諾瓦臉書</p>
+                      <p className="text-[10px] opacity-70">最新優惠與活動搶先看</p>
+                    </div>
+                  </div>
+                  <ChevronRight size={18}/>
+               </a>
+            </div>
+          </div>
+        );
+
+        const Menu = ({ onAdd }) => {
+          const [menu, setMenu] = useState([]);
+          const [loading, setLoading] = useState(true);
+          useEffect(() => { callGAS('getAppData').then(d => { setMenu(d.menu); setLoading(false); }) }, []);
+          
+          return (
+            <div className="p-6 space-y-6">
+              <div className="flex justify-between items-end border-b border-gray-100 pb-4">
+                <h3 className="text-2xl font-serif font-bold text-emerald-900">線上菜單</h3>
+                <span className="text-[10px] text-gray-400 tracking-[0.2em] uppercase">Digital Menu</span>
+              </div>
+              {loading ? <div className="py-20 text-center opacity-20"><Loader2 className="animate-spin mx-auto"/></div> : 
+                menu.map(item => (
+                  <div key={item.id} className="card p-4 flex gap-4 animate-slide-up">
+                    <div className="w-20 h-20 bg-emerald-50 rounded-2xl flex items-center justify-center">
+                        <Utensils className="text-emerald-200" size={32}/>
+                    </div>
+                    <div className="flex-1 flex flex-col justify-between py-1">
+                      <div>
+                        <div className="flex justify-between items-start">
+                          <h4 className="font-bold text-gray-900 text-sm">{item.name}</h4>
+                          {item.isPopular === "TRUE" && <span className="bg-orange-100 text-orange-600 text-[8px] px-2 py-0.5 rounded-full font-bold">人氣</span>}
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-1 line-clamp-1">{item.description}</p>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-emerald-900 font-black tracking-tighter">${item.price}</span>
+                        <button onClick={() => onAdd(item)} className="bg-emerald-900 text-white p-2 rounded-xl active:scale-90 transition-transform">
+                          <PlusCircle size={20}/>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              }
+            </div>
+          );
+        };
+
+        const Booking = ({ cart, setCart }) => {
+          const [step, setStep] = useState(1);
+          const [form, setForm] = useState({ date: '', time: '11:30', guests: 2, name: '', phone: '' });
+          const [submitting, setSubmitting] = useState(false);
+
+          const submit = async () => {
+            if(!form.name || !form.phone || !form.date) return alert('請完整填寫聯絡資料');
+            setSubmitting(true);
+            try {
+              const res = await callGAS('submitReservation', { ...form, preOrders: cart, totalAmount: cart.reduce((s,i)=>s+i.price,0) });
+              if(res.success) {
+                if(window.liff?.isInClient()) {
+                  liff.sendMessages([{ type: 'text', text: `🍴 SANOVA 訂位成功！\n姓名：${form.name}\n日期：${form.date} ${form.time}\n預點項目：${cart.length} 件\n期待您的光臨！` }]);
+                }
+                setStep(3);
+                setCart([]);
+              }
+            } finally { setSubmitting(false); }
+          };
+
+          if(step === 3) return (
+            <div className="p-10 text-center space-y-8 py-32 animate-slide-up">
+              <CheckCircle2 size={64} className="mx-auto text-emerald-600" />
+              <h2 className="text-2xl font-bold font-serif text-emerald-900">預約已完成</h2>
+              <p className="text-sm text-gray-400">我們已收到您的訂位與預點內容<br/>系統將會同步至您的會員中心</p>
+              <Link to="/" className="btn-primary block w-full py-5 font-bold shadow-lg mt-10">回到首頁</Link>
+            </div>
+          );
+
+          return (
+            <div className="p-6 space-y-6">
+              <div className="card p-8 space-y-6">
+                <h3 className="text-xl font-bold font-serif text-emerald-900 border-b pb-4">立即預約訂位</h3>
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">日期</label>
+                    <input type="date" className="w-full p-4 bg-gray-50 rounded-xl outline-none border border-transparent focus:border-emerald-200" value={form.date} onChange={e=>setForm({...form, date:e.target.value})} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">時段</label>
+                      <select className="w-full p-4 bg-gray-50 rounded-xl" value={form.time} onChange={e=>setForm({...form, time:e.target.value})}>
+                        <option>11:30</option><option>12:00</option><option>17:30</option><option>18:30</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">人數</label>
+                      <input type="number" className="w-full p-4 bg-gray-50 rounded-xl" value={form.guests} onChange={e=>setForm({...form, guests:e.target.value})} />
+                    </div>
+                  </div>
+                  <input type="text" placeholder="聯絡大名" className="w-full p-4 bg-gray-50 rounded-xl" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
+                  <input type="tel" placeholder="聯絡電話" className="w-full p-4 bg-gray-50 rounded-xl" value={form.phone} onChange={e=>setForm({...form, phone:e.target.value})} />
+                </div>
+
+                {cart.length > 0 && (
+                  <div className="bg-orange-50 p-5 rounded-2xl space-y-2 border border-orange-100">
+                    <p className="text-[10px] font-bold text-orange-800 uppercase flex items-center gap-2"><ShoppingCart size={12}/> 已選購預點餐點 ({cart.length})</p>
+                    {cart.map((i,idx)=>(
+                      <div key={idx} className="flex justify-between text-[11px] font-medium border-b border-orange-200/30 pb-1">
+                        <span>{i.name}</span><span>${i.price}</span>
+                      </div>
+                    ))}
+                    <div className="text-right text-sm font-black text-orange-900 pt-1">總額: ${cart.reduce((s,i)=>s+i.price,0)}</div>
+                  </div>
+                )}
+
+                <button onClick={submit} disabled={submitting} className="btn-primary w-full py-5 font-bold shadow-xl shadow-emerald-900/10 flex justify-center items-center gap-2">
+                  {submitting ? <Loader2 className="animate-spin" size={20}/> : "確認並發送訂位"}
+                </button>
+              </div>
+            </div>
+          );
+        };
+
+        const InfoPage = () => (
+          <div className="p-6 space-y-8">
+            <section className="space-y-4">
+              <h3 className="text-xl font-bold font-serif text-emerald-900 flex items-center gap-2"><MapPin size={22}/> 門市資訊</h3>
+              <div className="card p-6 space-y-4">
+                <p className="text-sm font-bold text-gray-700">地址：金門縣金湖鎮太湖路二段3巷6號</p>
+                <div className="h-40 bg-gray-100 rounded-2xl flex items-center justify-center"><p className="text-[10px] text-gray-400">Google Map 預留區</p></div>
+                <button className="w-full py-4 border border-emerald-900 text-emerald-900 rounded-2xl font-bold flex justify-center items-center gap-2">
+                  <Send size={18}/> 開啟地圖導航
+                </button>
+              </div>
+            </section>
+            <section className="space-y-4">
+              <h3 className="text-xl font-bold font-serif text-emerald-900 flex items-center gap-2"><HelpCircle size={22}/> 常見問題</h3>
+              <div className="space-y-3">
+                {["低消是多少？", "有提供素食嗎？", "固定公休日？"].map((q,i)=>(
+                  <div key={i} className="card p-5 flex justify-between items-center text-sm font-medium"><span>{q}</span><ChevronRight size={16} className="text-gray-300"/></div>
+                ))}
+              </div>
+            </section>
+          </div>
+        );
+
+        const Member = () => {
+          const { user, setUser, isAdmin } = useContext(AuthContext);
+          const [phone, setPhone] = useState('');
+          const navigate = useNavigate();
+
+          if(!user) return (
+            <div className="p-10 text-center h-[70vh] flex flex-col justify-center space-y-8">
+              <div className="w-20 h-20 bg-emerald-50 rounded-3xl flex items-center justify-center mx-auto text-emerald-900"><LogIn size={32}/></div>
+              <div><h2 className="text-2xl font-bold font-serif">會員中心</h2><p className="text-xs text-gray-400 mt-1">輸入手機號碼進入系統</p></div>
+              <input type="tel" className="card w-full p-5 text-center text-2xl font-bold outline-none" placeholder="09xxxxxxxx" value={phone} onChange={e=>setPhone(e.target.value)}/>
+              <button onClick={()=>setUser(phone)} className="btn-primary w-full py-5 font-bold shadow-lg shadow-emerald-900/10">進入系統</button>
+            </div>
+          );
+
+          return (
+            <div className="p-6 space-y-6">
+              <div className="bg-emerald-900 p-10 rounded-[3rem] text-white relative overflow-hidden shadow-2xl">
+                 <div className="absolute top-0 right-0 p-8 opacity-10"><User size={120}/></div>
+                 <h2 className="text-2xl font-bold font-serif">{isAdmin ? '系統管理員' : '親愛的會員'}</h2>
+                 <p className="text-xs opacity-60 mt-2 font-mono tracking-widest">{user}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="card p-6 flex flex-col items-center gap-2"><span className="text-[10px] uppercase text-gray-400 font-bold">Pasta Points</span><span className="text-2xl font-black text-emerald-900">120 pt</span></div>
+                <div className="card p-6 flex flex-col items-center gap-2"><span className="text-[10px] uppercase text-gray-400 font-bold">訂位紀錄</span><span className="text-2xl font-black text-emerald-900">5 次</span></div>
+              </div>
+              {isAdmin && <Link to="/pos" className="btn-primary w-full py-5 flex justify-center items-center gap-2"><ShieldCheck size={20}/> 進入 POS 管理後台</Link>}
+              <button onClick={()=>setUser(null)} className="w-full text-gray-300 text-[10px] font-bold uppercase tracking-widest pt-10">登出帳號</button>
+            </div>
+          );
+        };
+
+        const POS = () => {
+          const [orders, setOrders] = useState([]);
+          const [loading, setLoading] = useState(true);
+          const load = () => { setLoading(true); callGAS('getAppData').then(d => { setOrders(d.reservations); setLoading(false); }); };
+          useEffect(load, []);
+          
+          return (
+            <div className="p-6 space-y-6">
+              <div className="flex justify-between items-center">
+                <h3 className="text-2xl font-bold font-serif">POS 戰情室</h3>
+                <button onClick={load} className="p-2 bg-gray-100 rounded-full"><Loader2 size={16} className={loading ? 'animate-spin' : ''}/></button>
+              </div>
+              <div className="space-y-4">
+                {orders.map((o, idx) => (
+                  <div key={idx} className="card p-5 space-y-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-bold">{o.姓名} <span className="text-[10px] bg-emerald-50 text-emerald-800 px-2 rounded-full ml-2">桌 {o.桌號}</span></h4>
+                        <p className="text-[10px] text-gray-400 mt-1">ID: {o.ID}</p>
+                      </div>
+                      <span className="text-[10px] font-bold bg-orange-100 text-orange-800 px-3 py-1 rounded-full uppercase">{o.狀態}</span>
+                    </div>
+                    <div className="text-[11px] text-gray-500 space-y-1">
+                      <p>📅 {o.日期} {o.時間} ({o.人數} 人)</p>
+                      <p>💰 應收總額: ${o.總額}</p>
+                    </div>
+                    <div className="flex gap-2">
+                       <button className="flex-1 bg-emerald-900 text-white text-[10px] font-bold py-2 rounded-xl">確認訂位</button>
+                       <button className="flex-1 border text-[10px] font-bold py-2 rounded-xl text-red-500">取消</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        };
+
+        const App = () => {
+          const [user, setUser] = useState(null);
+          const [cart, setCart] = useState([]);
+          const isAdmin = ['0937942582', '0978375273'].includes(user);
+
+          useEffect(() => {
+            const initLIFF = async () => {
+              try { if(window.liff) await liff.init({ liffId: "2006764516-N2p7lB4M" }); } catch(e){}
+              setTimeout(() => {
+                document.getElementById('splash-screen').classList.add('hidden-splash');
+              }, 500);
+            };
+            initLIFF();
+          }, []);
+
+          return (
+            <AuthContext.Provider value={{ user, setUser, isAdmin }}>
+              <Router>
+                <Layout cartCount={cart.length}>
+                  <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/menu" element={<Menu onAdd={i => setCart([...cart, i])} />} />
+                    <Route path="/booking" element={<Booking cart={cart} setCart={setCart} />} />
+                    <Route path="/member" element={<Member />} />
+                    <Route path="/info" element={<InfoPage />} />
+                    <Route path="/pos" element={isAdmin ? <POS /> : <Navigate to="/member" />} />
+                    <Route path="*" element={<Navigate to="/" />} />
+                  </Routes>
+                </Layout>
+              </Router>
+            </AuthContext.Provider>
+          );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

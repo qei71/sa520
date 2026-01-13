@@ -1,0 +1,7 @@
+{
+  "name": "Bella Vita Italian Kitchen - LIFF Booking System",
+  "description": "A comprehensive LINE LIFF application for an Italian restaurant featuring online reservations, pre-ordering, digital menu, member center, and POS integration simulations.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
